@@ -1,7 +1,6 @@
 import chai, { expect } from 'chai'
 import { Contract } from 'ethers'
-import { MaxUint256 } from 'ethers/constants'
-import { bigNumberify, hexlify, keccak256, defaultAbiCoder, toUtf8Bytes } from 'ethers/utils'
+import { ethers } from 'ethers'
 import { solidity, MockProvider, deployContract } from 'ethereum-waffle'
 import { ecsign } from 'ethereumjs-util'
 
@@ -15,11 +14,7 @@ const TOTAL_SUPPLY = expandTo18Decimals(10000)
 const TEST_AMOUNT = expandTo18Decimals(10)
 
 describe('UniswapV2ERC20', () => {
-  const provider = new MockProvider({
-    hardfork: 'istanbul',
-    mnemonic: 'horn horn horn horn horn horn horn horn horn horn horn horn',
-    gasLimit: 9999999
-  })
+  const provider = new MockProvider()
   const [wallet, other] = provider.getWallets()
 
   let token: Contract
@@ -35,15 +30,15 @@ describe('UniswapV2ERC20', () => {
     expect(await token.totalSupply()).to.eq(TOTAL_SUPPLY)
     expect(await token.balanceOf(wallet.address)).to.eq(TOTAL_SUPPLY)
     expect(await token.DOMAIN_SEPARATOR()).to.eq(
-      keccak256(
-        defaultAbiCoder.encode(
+      ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
           ['bytes32', 'bytes32', 'bytes32', 'uint256', 'address'],
           [
-            keccak256(
-              toUtf8Bytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+            ethers.utils.keccak256(
+              ethers.utils.toUtf8Bytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
             ),
-            keccak256(toUtf8Bytes(name)),
-            keccak256(toUtf8Bytes('1')),
+            ethers.utils.keccak256(ethers.utils.toUtf8Bytes(name)),
+            ethers.utils.keccak256(ethers.utils.toUtf8Bytes('1')),
             1,
             token.address
           ]
@@ -51,7 +46,7 @@ describe('UniswapV2ERC20', () => {
       )
     )
     expect(await token.PERMIT_TYPEHASH()).to.eq(
-      keccak256(toUtf8Bytes('Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)'))
+      ethers.utils.keccak256(ethers.utils.toUtf8Bytes('Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)'))
     )
   })
 
@@ -86,18 +81,18 @@ describe('UniswapV2ERC20', () => {
   })
 
   it('transferFrom:max', async () => {
-    await token.approve(other.address, MaxUint256)
+    await token.approve(other.address, ethers.constants.MaxUint256)
     await expect(token.connect(other).transferFrom(wallet.address, other.address, TEST_AMOUNT))
       .to.emit(token, 'Transfer')
       .withArgs(wallet.address, other.address, TEST_AMOUNT)
-    expect(await token.allowance(wallet.address, other.address)).to.eq(MaxUint256)
+    expect(await token.allowance(wallet.address, other.address)).to.eq(ethers.constants.MaxUint256)
     expect(await token.balanceOf(wallet.address)).to.eq(TOTAL_SUPPLY.sub(TEST_AMOUNT))
     expect(await token.balanceOf(other.address)).to.eq(TEST_AMOUNT)
   })
 
   it('permit', async () => {
     const nonce = await token.nonces(wallet.address)
-    const deadline = MaxUint256
+    const deadline = ethers.constants.MaxUint256
     const digest = await getApprovalDigest(
       token,
       { owner: wallet.address, spender: other.address, value: TEST_AMOUNT },
@@ -107,10 +102,10 @@ describe('UniswapV2ERC20', () => {
 
     const { v, r, s } = ecsign(Buffer.from(digest.slice(2), 'hex'), Buffer.from(wallet.privateKey.slice(2), 'hex'))
 
-    await expect(token.permit(wallet.address, other.address, TEST_AMOUNT, deadline, v, hexlify(r), hexlify(s)))
+    await expect(token.permit(wallet.address, other.address, TEST_AMOUNT, deadline, v, ethers.utils.hexlify(r), ethers.utils.hexlify(s)))
       .to.emit(token, 'Approval')
       .withArgs(wallet.address, other.address, TEST_AMOUNT)
     expect(await token.allowance(wallet.address, other.address)).to.eq(TEST_AMOUNT)
-    expect(await token.nonces(wallet.address)).to.eq(bigNumberify(1))
+    expect(await token.nonces(wallet.address)).to.eq(ethers.BigNumber.from(1))
   })
 })
